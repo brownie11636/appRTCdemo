@@ -28,10 +28,10 @@ import okhttp3.OkHttpClient;
 
 //import de.tavendo.autobahn.WebSocket;
 
-public class SocketIOUtils {
+public class SocketIO_Utils {
 
     //    public static socket socket;
-    private static final String TAG = "SocketIOUtils";
+    private static final String TAG = "SocketIO_Utils";
     public static IO.Options options = new IO.Options();
     public static Dispatcher dispatcher;
     public static String uri = "https://192.168.0.11:3333";
@@ -40,11 +40,12 @@ public class SocketIOUtils {
     public static boolean isInitiator;
     public static boolean isStarted;
     public static boolean isChannelReady;
+//    public SocketIO_RTCClient RTCClient;
 
 
     public static io.socket.client.Socket mSocket;
 
-//    public SocketIOUtils(Manager io, String nsp, Manager.Options opts) {
+//    public SocketIO_Utils(Manager io, String nsp, Manager.Options opts) {
 //        super(io, nsp, opts);
 //    }
 
@@ -74,6 +75,12 @@ public class SocketIOUtils {
                 JSONObject message = (JSONObject)((JSONObject) packet[0]).get("message");
                 Log.i(TAG,"message: " + message);
                 Log.i(TAG, "type: " + message.getString("type"));
+
+//                RTCClient.RoomConnectionParameters.roomUrl = uri;
+//                RTCClient.RoomConnectionParameters.roomId = uri;
+//                RTCClient.RoomConnectionParameters.roomUrl = uri;
+//                RTCClient.RoomConnectionParameters.roomUrl = uri;
+
                 if (message.get("type").equals("offer")){
                     if(!isInitiator && !isStarted){
 //                        maybeStart();         ///////////////
@@ -99,6 +106,7 @@ public class SocketIOUtils {
             Log.i(TAG,"Another peer made a request to join room " + room);
             Log.i(TAG,"This peer is the initiator of room " + room + "!");
             isChannelReady = true;
+//            RTCClient.RoomConnectionParameters.roomId = room;
         });
 
         mSocket.on("joined", (room) -> {

@@ -10,6 +10,8 @@
 
 package com.example.nativewebrtcexample;
 
+import static com.example.nativewebrtcexample.SocketIO_Utils.mSocket;
+
 import android.os.Handler;
 import android.os.HandlerThread;
 import android.util.Log;
@@ -54,7 +56,7 @@ public class SocketIO_RTCClient implements AppRTCClient, WebSocketChannelEvents 
   private String messageUrl;
   private String leaveUrl;
 
-  public SocketIO_RTCClient(SignalingEvents events) {
+  public SocketIO_RTCClient(SignalingEvents events) {   //call Activity가 SignalingEvent 구현한것
     this.events = events;
     roomState = ConnectionState.NEW;
     final HandlerThread handlerThread = new HandlerThread(TAG);
@@ -67,7 +69,9 @@ public class SocketIO_RTCClient implements AppRTCClient, WebSocketChannelEvents 
   // Asynchronously connect to an AppRTC room URL using supplied connection
   // parameters, retrieves room parameters and connect to WebSocket server.
   @Override
+  //callActivity에서 실행
   public void connectToRoom(RoomConnectionParameters connectionParameters) {
+    //이 RoomConnectionParameter는 connectActivity에서 callActvity부를 때 같이 넘기도록 하자
     this.connectionParameters = connectionParameters;
     handler.post(new Runnable() {
       @Override
@@ -93,7 +97,7 @@ public class SocketIO_RTCClient implements AppRTCClient, WebSocketChannelEvents 
     String connectionUrl = getConnectionUrl(connectionParameters);
     Log.d(TAG, "Connect to room: " + connectionUrl);
     roomState = ConnectionState.NEW;
-    wsClient = new WebSocketChannelClient(handler, this);
+//    wsClient = new WebSocketChannelClient(handler, this);
 
     RoomParametersFetcherEvents callbacks = new RoomParametersFetcherEvents() {
       @Override

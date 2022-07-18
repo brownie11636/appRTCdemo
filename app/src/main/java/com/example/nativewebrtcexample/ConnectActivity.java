@@ -10,7 +10,7 @@
 
 package com.example.nativewebrtcexample;
 
-import static com.example.nativewebrtcexample.SocketIOUtils.mSocket;
+import static com.example.nativewebrtcexample.SocketIO_Utils.mSocket;
 
 import android.annotation.TargetApi;
 import android.app.Activity;
@@ -113,7 +113,10 @@ public class ConnectActivity extends Activity {
       public void onItemClicked(int position, MyService service) {
         Toast.makeText(getApplicationContext(),"buttonClicked",Toast.LENGTH_LONG);
 
-//                SocketIOUtils.sendToPeer("");
+        String roomId = mSocket.id();
+        connectToRoom(roomId, false, false, false, 0);
+
+//                SocketIO_Utils.sendToPeer("");
         try {
           mSocket.emit("Join_Service",service.profile.get("service"));
           Log.i(TAG, "send Join_Service message: " + service.profile.get("service"));
@@ -127,7 +130,7 @@ public class ConnectActivity extends Activity {
         if(service.getDescription().equals("Streamer")) {
           //gotStream() in robot_viewer.js
           Log.i(TAG,"Adding local stream."); //??
-          SocketIOUtils.sendToPeer("connection request");
+          SocketIO_Utils.sendToPeer("connection request");
         }
 
       }
@@ -136,7 +139,7 @@ public class ConnectActivity extends Activity {
 
 
     ////////Socket creation and connection By Yeosang
-    SocketIOUtils.init();
+    SocketIO_Utils.init();
     mSocket.connect();
 
     //q_result 부분은 mAdapter.notifyDataSetChanged(); 때문에 다른 class로 넘기기가 좀 애매하네

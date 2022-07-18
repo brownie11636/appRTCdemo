@@ -10,6 +10,8 @@
 
 package com.example.nativewebrtcexample;
 
+import static com.example.nativewebrtcexample.SocketIO_Utils.mSocket;
+
 import android.app.Activity;
 import android.app.AlertDialog;
 import android.app.FragmentTransaction;
@@ -329,9 +331,12 @@ public class CallActivity extends Activity implements AppRTCClient.SignalingEven
     Log.d(TAG, "VIDEO_FILE: '" + intent.getStringExtra(EXTRA_VIDEO_FILE_AS_CAMERA) + "'");
 
     // Create connection client. Use DirectRTCClient if room name is an IP otherwise use the
-    // standard SocketIO_RTCClient.
+    // standard webSocketRTCClient.
+//    if (loopback || !DirectRTCClient.IP_PATTERN.matcher(roomId).matches()) {
+////      appRtcClient = new SocketIO_RTCClient(this);
     if (loopback || !DirectRTCClient.IP_PATTERN.matcher(roomId).matches()) {
       appRtcClient = new SocketIO_RTCClient(this);
+      Log.i("TAG","SocketIO_RTCClient is ON");
     } else {
       Log.i(TAG, "Using DirectRTCClient because room name looks like an IP.");
       appRtcClient = new DirectRTCClient(this);
@@ -587,6 +592,7 @@ public class CallActivity extends Activity implements AppRTCClient.SignalingEven
   }
 
   // Should be called from UI thread
+  //밑에서 peerConnectionEvents를 구현하는 함수인 onConnted에서 불림
   private void callConnected() {
     final long delta = System.currentTimeMillis() - callStartedTimeMs;
     Log.i(TAG, "Call connected: delay=" + delta + "ms");
