@@ -35,8 +35,8 @@ import org.webrtc.SessionDescription;
  * Messages to other party (with local Ice candidates and answer SDP) can
  * be sent after WebSocket connection is established.
  */
-public class WebSocketRTCClient implements AppRTCClient, WebSocketChannelEvents {
-  private static final String TAG = "WSRTCClient";
+public class SocketIO_RTCClient implements AppRTCClient, WebSocketChannelEvents {
+  private static final String TAG = "SOCKETIO_RTCClient";
   private static final String ROOM_JOIN = "join";
   private static final String ROOM_MESSAGE = "message";
   private static final String ROOM_LEAVE = "leave";
@@ -54,7 +54,7 @@ public class WebSocketRTCClient implements AppRTCClient, WebSocketChannelEvents 
   private String messageUrl;
   private String leaveUrl;
 
-  public WebSocketRTCClient(SignalingEvents events) {
+  public SocketIO_RTCClient(SignalingEvents events) {
     this.events = events;
     roomState = ConnectionState.NEW;
     final HandlerThread handlerThread = new HandlerThread(TAG);
@@ -98,17 +98,17 @@ public class WebSocketRTCClient implements AppRTCClient, WebSocketChannelEvents 
     RoomParametersFetcherEvents callbacks = new RoomParametersFetcherEvents() {
       @Override
       public void onSignalingParametersReady(final SignalingParameters params) {
-        WebSocketRTCClient.this.handler.post(new Runnable() {
+        SocketIO_RTCClient.this.handler.post(new Runnable() {
           @Override
           public void run() {
-            WebSocketRTCClient.this.signalingParametersReady(params);
+            SocketIO_RTCClient.this.signalingParametersReady(params);
           }
         });
       }
 
       @Override
       public void onSignalingParametersError(String description) {
-        WebSocketRTCClient.this.reportError(description);
+        SocketIO_RTCClient.this.reportError(description);
       }
     };
 
@@ -321,7 +321,7 @@ public class WebSocketRTCClient implements AppRTCClient, WebSocketChannelEvents 
         } else if (type.equals("offer")) {
           if (!initiator) {
             SessionDescription sdp = new SessionDescription(
-                SessionDescription.Type.fromCanonicalForm(type), json.getString("sdp"));
+                SessionDescription.Type.fromCanonicalForm(type), json.getString("sdp"));     //java 내부의 SessionDescription class에 타입이 이미 OFFER, PRANSWER, ANSWER, ROLLBACK으로 정의되어있음
             events.onRemoteDescription(sdp);
           } else {
             reportError("Received offer for call receiver: " + msg);

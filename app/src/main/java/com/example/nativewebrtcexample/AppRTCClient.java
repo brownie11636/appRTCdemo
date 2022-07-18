@@ -24,10 +24,10 @@ public interface AppRTCClient {
    * Struct holding the connection parameters of an AppRTC room.
    */
   class RoomConnectionParameters {
-    public final String roomUrl;
-    public final String roomId;
-    public final boolean loopback;
-    public final String urlParameters;
+    public final String roomUrl;    //홈페이지 주소
+    public final String roomId;     //룸 넘버 socketId로 쓰면 될듯
+    public final boolean loopback;  //이건 버리지 뭐
+    public final String urlParameters;    //AppRTC 사이트랑 https통신할때 url 뒤에 붙여서 parameter들 조절하는 String 나는 쓸일없네 https://github.com/webrtc/samples/wiki/AppRTC-URL-parameter-guide
     public RoomConnectionParameters(
         String roomUrl, String roomId, boolean loopback, String urlParameters) {
       this.roomUrl = roomUrl;
@@ -78,9 +78,9 @@ public interface AppRTCClient {
   class SignalingParameters {
     public final List<PeerConnection.IceServer> iceServers;
     public final boolean initiator;
-    public final String clientId;
-    public final String wssUrl;
-    public final String wssPostUrl;
+    public final String clientId;   //clientId 내 SocketId로 대체하지 뭐
+    public final String wssUrl;     //웹소켓 서버
+    public final String wssPostUrl;     //http 서버 말하는듯? 없어도 되지 뭐
     public final SessionDescription offerSdp;
     public final List<IceCandidate> iceCandidates;
 

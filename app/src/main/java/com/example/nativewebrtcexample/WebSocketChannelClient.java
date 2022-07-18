@@ -106,8 +106,8 @@ public class WebSocketChannelClient {
 
   public void register(final String roomID, final String clientID) {    //여기가 room에 client를 등록하는 곳인듯?
     checkIfCalledOnValidThread();
-    this.roomID = roomID;
-    this.clientID = clientID;
+    this.roomID = roomID;         //connectionParameters.roomId
+    this.clientID = clientID;       //signalingParameters.clientId
     if (state != WebSocketConnectionState.CONNECTED) {
       Log.w(TAG, "WebSocket register() in state " + state);
       return;

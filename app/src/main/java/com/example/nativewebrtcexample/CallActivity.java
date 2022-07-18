@@ -10,7 +10,6 @@
 
 package com.example.nativewebrtcexample;
 
-import android.annotation.TargetApi;
 import android.app.Activity;
 import android.app.AlertDialog;
 import android.app.FragmentTransaction;
@@ -21,7 +20,6 @@ import android.content.pm.PackageManager;
 import android.media.projection.MediaProjection;
 import android.media.projection.MediaProjectionManager;
 import android.net.Uri;
-import android.os.Build;
 import android.os.Bundle;
 import android.os.Handler;
 import android.util.DisplayMetrics;
@@ -331,9 +329,9 @@ public class CallActivity extends Activity implements AppRTCClient.SignalingEven
     Log.d(TAG, "VIDEO_FILE: '" + intent.getStringExtra(EXTRA_VIDEO_FILE_AS_CAMERA) + "'");
 
     // Create connection client. Use DirectRTCClient if room name is an IP otherwise use the
-    // standard WebSocketRTCClient.
+    // standard SocketIO_RTCClient.
     if (loopback || !DirectRTCClient.IP_PATTERN.matcher(roomId).matches()) {
-      appRtcClient = new WebSocketRTCClient(this);
+      appRtcClient = new SocketIO_RTCClient(this);
     } else {
       Log.i(TAG, "Using DirectRTCClient because room name looks like an IP.");
       appRtcClient = new DirectRTCClient(this);

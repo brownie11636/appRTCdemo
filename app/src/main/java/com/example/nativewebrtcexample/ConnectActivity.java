@@ -10,6 +10,8 @@
 
 package com.example.nativewebrtcexample;
 
+import static com.example.nativewebrtcexample.SocketIOUtils.mSocket;
+
 import android.annotation.TargetApi;
 import android.app.Activity;
 import android.app.AlertDialog;
@@ -23,9 +25,7 @@ import android.os.Build;
 import android.os.Bundle;
 import android.preference.PreferenceManager;
 import android.util.Log;
-import android.view.ContextMenu;
 import android.view.KeyEvent;
-import android.view.Menu;
 import android.view.MenuItem;
 import android.view.View;
 import android.view.View.OnClickListener;
@@ -37,11 +37,17 @@ import android.widget.EditText;
 import android.widget.ImageButton;
 import android.widget.ListView;
 import android.widget.TextView;
+import android.widget.Toast;
+
 import androidx.annotation.Nullable;
+import androidx.recyclerview.widget.LinearLayoutManager;
+import androidx.recyclerview.widget.RecyclerView;
+
 import java.util.ArrayList;
 import java.util.Random;
 import org.json.JSONArray;
 import org.json.JSONException;
+import org.json.JSONObject;
 
 /**
  * Handles the initial setup where the user selects which room to join.
@@ -52,6 +58,11 @@ public class ConnectActivity extends Activity {
   private static final int PERMISSION_REQUEST = 2;
   private static final int REMOVE_FAVORITE_INDEX = 0;
   private static boolean commandLineRun;
+
+  //By yeosang
+  private RecyclerView mPostRecyclerView;
+  private ServiceProfileAdapter mAdapter;
+  private ArrayList<MyService> mProfiles;
 
   private ImageButton addFavoriteButton;
   private EditText roomEditText;
@@ -64,7 +75,7 @@ public class ConnectActivity extends Activity {
   private String keyprefAudioBitrateType;
   private String keyprefAudioBitrateValue;
   private String keyprefRoomServerUrl;
-  private String keyprefRoom;
+  private String keyprefRoom;   //ConnectToRoom함수에 들어가는 인자 중요하농 ㅋㅋ  아니네 그냥 url만 중요할듯
   private String keyprefRoomList;
   private ArrayList<String> roomList;
   private ArrayAdapter<String> adapter;
@@ -88,6 +99,103 @@ public class ConnectActivity extends Activity {
 
     setContentView(R.layout.activity_connect);
 
+    ////////By yeosang
+    mPostRecyclerView = findViewById(R.id.recyclerView);
+    mProfiles = new ArrayList<>();
+//        socketOnButton.setOnClickListener((socketOnListener));
+    // Adapter, LayoutManager 연결
+    mAdapter = new ServiceProfileAdapter(mProfiles);
+    mPostRecyclerView.setAdapter(mAdapter);
+    mPostRecyclerView.setLayoutManager(new LinearLayoutManager(this));
+
+    mAdapter.setOnItemClickListener(new ServiceProfileAdapter.OnItemClickListener() {
+      @Override
+      public void onItemClicked(int position, MyService service) {
+        Toast.makeText(getApplicationContext(),"buttonClicked",Toast.LENGTH_LONG);
+
+//                SocketIOUtils.sendToPeer("");
+        try {
+          mSocket.emit("Join_Service",service.profile.get("service"));
+          Log.i(TAG, "send Join_Service message: " + service.profile.get("service"));
+          mSocket.emit("msg-v1", new JSONObject().put("from", mSocket.id()));
+          Log.i(TAG, "send message to Peer from" + mSocket.id());
+        } catch (JSONException e) {
+          e.printStackTrace();
+          Log.e(TAG, "fail to send json socketId");
+        }
+
+        if(service.getDescription().equals("Streamer")) {
+          //gotStream() in robot_viewer.js
+          Log.i(TAG,"Adding local stream."); //??
+          SocketIOUtils.sendToPeer("connection request");
+        }
+
+      }
+    });
+    ////////By yeosang END
+
+
+    ////////Socket creation and connection By Yeosang
+    SocketIOUtils.init();
+    mSocket.connect();
+
+    //q_result 부분은 mAdapter.notifyDataSetChanged(); 때문에 다른 class로 넘기기가 좀 애매하네
+    mSocket.on("q_result", q_result -> {
+      Log.i(TAG, "q_result" + q_result);       //[Ljava.lang.Object
+      Log.i(TAG, "q_result[0]" + q_result[0]);     //org.json.JSONArray
+//            Log.i("socket", "q_result[1]" + q_result[1]);     //there is no q_result[1]
+      Log.i(TAG, "type of q_result: " + q_result.getClass().getName());
+      Log.i(TAG, "type of q_result[0]: " + q_result[0].getClass().getName());
+      mProfiles.clear();
+      try {
+        if (q_result[0] != null) {
+//                    Log.i("socket", "q_result[0].get(0)" + ((JSONArray) q_result[0]).get(0));
+//                    Log.i("socket", "type of q_result[0].get(0): " + ((JSONArray) q_result[0]).get(0).getClass().getName());
+//                    Log.i("socket", "q_result[0].get(0).get(header)" + ((JSONObject)((JSONArray)q_result[0]).get(0)).get("header"));
+//                    Log.i("socket", "type of q_result[0].get(0).get(header): " + ((JSONObject)((JSONArray)q_result[0]).get(0)).get("header").getClass().getName());
+//                    Log.i("socket", "q_result[0].get(0).get(data)" + ((JSONObject)((JSONArray)q_result[0]).get(0)).get("data"));
+//                    Log.i("socket", "type of q_result[0].get(0).get(data): " + ((JSONObject)((JSONArray)q_result[0]).get(0)).get("data").getClass().getName());
+          //get("data")  ==> JSONArray
+          if (((JSONArray)q_result[0]).getJSONObject(0).get("header").equals("ServiceList")) {
+            Log.i(TAG,"header: ServiceList");
+            JSONArray data = (JSONArray)(((JSONArray) q_result[0]).getJSONObject(0)).get("data");
+
+            for (int i = 0; i < data.length(); i++) {
+              Log.i(TAG,"iiii =" + i);
+              //여기서 listView에 목록 집어넣어야함 그전에 parsing 이나 array 변환 해야할듯
+              mProfiles.add(new MyService(data.getJSONObject(i)));
+
+//                            Log.i("socket", "socketID: " + MyService.create(data.getJSONObject(i)).getSocketID());
+              Log.i(TAG, "socketID: " + data.getJSONObject(i).getString("socketId"));
+              Log.i(TAG, "mProfile "+i+": " + mProfiles.get(i).getSocketID());
+//                            Log.i("socket", "nickname: " + profile.getNickname());
+              for(int j = 0 ; j< mProfiles.size(); j++){
+                Log.i(TAG,"Profiles(" + j + ")" + mProfiles.get(j).getSocketID());
+              }
+            }
+
+          }else{
+            Log.i(TAG,"header is not matching");
+          }
+        }
+      } catch (JSONException e) {
+        e.printStackTrace();
+      }
+
+      //안드로이드에서 네트워크 관련 작업은 반드시 Main Thread가 아닌 sub-Thread를 이용하여 처리해주어야 하는데
+      // SocketIO에서 제공하는 메소드들은 알아서 내부적으로 Thread를 생성 및 이용해주기 때문에 신경쓸 필요가 없다.
+      //다만, 서버로부터 데이터가 전달되었을때, 해당 데이터들을 UI부분에 업데이트하고 싶을 때는
+      // 해당 작업만 Main Thread가 수행하게 해주어야 되기 때문에 runOnUIThread를 이용하여 UI관련 부분을 Nain Thread에게 전달해주면 된다.
+      //https://blog.naver.com/PostView.naver?blogId=rkdwnsdud555&logNo=221146226041
+      runOnUiThread(new Runnable() {
+        @Override
+        public void run() {
+          mAdapter.notifyDataSetChanged();
+        }
+      });
+    });
+
+
     roomEditText = findViewById(R.id.room_edittext);
     roomEditText.setOnEditorActionListener(new TextView.OnEditorActionListener() {
       @Override
@@ -100,11 +208,11 @@ public class ConnectActivity extends Activity {
       }
     });
     roomEditText.requestFocus();
-
-    roomListView = findViewById(R.id.room_listview);
-    roomListView.setEmptyView(findViewById(android.R.id.empty));
-    roomListView.setOnItemClickListener(roomListClickListener);
-    registerForContextMenu(roomListView);
+      // Cancel the Listview
+//    roomListView = findViewById(R.id.room_listview);
+//    roomListView.setEmptyView(findViewById(android.R.id.empty));
+//    roomListView.setOnItemClickListener(roomListClickListener);
+//    registerForContextMenu(roomListView);
     ImageButton connectButton = findViewById(R.id.connect_button);
     connectButton.setOnClickListener(connectListener);
     addFavoriteButton = findViewById(R.id.add_favorite_button);
@@ -112,41 +220,43 @@ public class ConnectActivity extends Activity {
 
     requestPermissions();
   }
+//  //// Cancel the Listview
+//  @Override
+//  public boolean onCreateOptionsMenu(Menu menu) {
+//    getMenuInflater().inflate(R.menu.connect_menu, menu);
+//    return true;
+//  }
+//
+      //// Cancel the Listview
+//  @Override
+//  public void onCreateContextMenu(ContextMenu menu, View v, ContextMenu.ContextMenuInfo menuInfo) {
+//    if (v.getId() == R.id.room_listview) {
+//      AdapterView.AdapterContextMenuInfo info = (AdapterView.AdapterContextMenuInfo) menuInfo;
+//      menu.setHeaderTitle(roomList.get(info.position));
+//      String[] menuItems = getResources().getStringArray(R.array.roomListContextMenu);
+//      for (int i = 0; i < menuItems.length; i++) {
+//        menu.add(Menu.NONE, i, i, menuItems[i]);
+//      }
+//    } else {
+//      super.onCreateContextMenu(menu, v, menuInfo);
+//    }
+//  }
 
-  @Override
-  public boolean onCreateOptionsMenu(Menu menu) {
-    getMenuInflater().inflate(R.menu.connect_menu, menu);
-    return true;
-  }
+  //// Cancel the Listview
+//  @Override
+//  public boolean onContextItemSelected(MenuItem item) {
+//    if (item.getItemId() == REMOVE_FAVORITE_INDEX) {
+//      AdapterView.AdapterContextMenuInfo info =
+//          (AdapterView.AdapterContextMenuInfo) item.getMenuInfo();
+//      roomList.remove(info.position);
+//      adapter.notifyDataSetChanged();
+//      return true;
+//    }
+//
+//    return super.onContextItemSelected(item);
+//  }
 
-  @Override
-  public void onCreateContextMenu(ContextMenu menu, View v, ContextMenu.ContextMenuInfo menuInfo) {
-    if (v.getId() == R.id.room_listview) {
-      AdapterView.AdapterContextMenuInfo info = (AdapterView.AdapterContextMenuInfo) menuInfo;
-      menu.setHeaderTitle(roomList.get(info.position));
-      String[] menuItems = getResources().getStringArray(R.array.roomListContextMenu);
-      for (int i = 0; i < menuItems.length; i++) {
-        menu.add(Menu.NONE, i, i, menuItems[i]);
-      }
-    } else {
-      super.onCreateContextMenu(menu, v, menuInfo);
-    }
-  }
-
-  @Override
-  public boolean onContextItemSelected(MenuItem item) {
-    if (item.getItemId() == REMOVE_FAVORITE_INDEX) {
-      AdapterView.AdapterContextMenuInfo info =
-          (AdapterView.AdapterContextMenuInfo) item.getMenuInfo();
-      roomList.remove(info.position);
-      adapter.notifyDataSetChanged();
-      return true;
-    }
-
-    return super.onContextItemSelected(item);
-  }
-
-  @Override
+  @Override   //이건 setting 관련이라 남겨야할듯
   public boolean onOptionsItemSelected(MenuItem item) {
     // Handle presses on the action bar items.
     if (item.getItemId() == R.id.action_settings) {
@@ -161,8 +271,8 @@ public class ConnectActivity extends Activity {
     }
   }
 
-  @Override
-  public void onPause() {
+  @Override   //이 부분에서 sharedpref에 룸정보 넘겨주는거네 고쳐서 써야할듯듯
+ public void onPause() {
     super.onPause();
     String room = roomEditText.getText().toString();
     String roomListJson = new JSONArray(roomList).toString();
@@ -172,7 +282,7 @@ public class ConnectActivity extends Activity {
     editor.commit();
   }
 
-  @Override
+  @Override   //ListView 관련은 주석처리 recyclerView로 바꿔줘야함 근데 잘 모르겠네 밑에있는 부분 왜 있는지
   public void onResume() {
     super.onResume();
     String room = sharedPref.getString(keyprefRoom, "");
@@ -189,12 +299,12 @@ public class ConnectActivity extends Activity {
         Log.e(TAG, "Failed to load room list: " + e.toString());
       }
     }
-    adapter = new ArrayAdapter<>(this, android.R.layout.simple_list_item_1, roomList);
-    roomListView.setAdapter(adapter);
-    if (adapter.getCount() > 0) {
-      roomListView.requestFocus();
-      roomListView.setItemChecked(0, true);
-    }
+//    adapter = new ArrayAdapter<>(this, android.R.layout.simple_list_item_1, roomList);
+//    roomListView.setAdapter(adapter);
+//    if (adapter.getCount() > 0) {
+//      roomListView.requestFocus();
+//      roomListView.setItemChecked(0, true);
+//    }
   }
 
   @Override
@@ -522,7 +632,7 @@ public class ConnectActivity extends Activity {
         useValuesFromIntent);
 
     // Get datachannel options
-    boolean dataChannelEnabled = sharedPrefGetBoolean(R.string.pref_enable_datachannel_key,
+    boolean dataChannelEnabled = sharedPrefGetBoolean(R.string.pref_enable_datachannel_key,   //뭔지 잘 모르겠네 후우
         CallActivity.EXTRA_DATA_CHANNEL_ENABLED, R.string.pref_enable_datachannel_default,
         useValuesFromIntent);
     boolean ordered = sharedPrefGetBoolean(R.string.pref_ordered_key, CallActivity.EXTRA_ORDERED,
@@ -577,7 +687,7 @@ public class ConnectActivity extends Activity {
       intent.putExtra(CallActivity.EXTRA_RUNTIME, runTimeMs);
       intent.putExtra(CallActivity.EXTRA_DATA_CHANNEL_ENABLED, dataChannelEnabled);
 
-      if (dataChannelEnabled) {
+      if (dataChannelEnabled) {   //이 데이터 채널이 p2p 데이터 채널 얘기하는거 같기두함
         intent.putExtra(CallActivity.EXTRA_ORDERED, ordered);
         intent.putExtra(CallActivity.EXTRA_MAX_RETRANSMITS_MS, maxRetrMs);
         intent.putExtra(CallActivity.EXTRA_MAX_RETRANSMITS, maxRetr);
@@ -649,11 +759,11 @@ public class ConnectActivity extends Activity {
   private final OnClickListener addFavoriteListener = new OnClickListener() {
     @Override
     public void onClick(View view) {
-      String newRoom = roomEditText.getText().toString();
-      if (newRoom.length() > 0 && !roomList.contains(newRoom)) {
-        adapter.add(newRoom);
-        adapter.notifyDataSetChanged();
-      }
+//      String newRoom = roomEditText.getText().toString();
+//      if (newRoom.length() > 0 && !roomList.contains(newRoom)) {
+//        adapter.add(newRoom);
+//        adapter.notifyDataSetChanged();
+//      }
     }
   };
 

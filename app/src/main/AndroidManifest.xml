@@ -23,7 +23,8 @@
         android:icon="@drawable/ic_launcher"
         android:label="@string/app_name"
         android:supportsRtl="false"
-        tools:ignore="HardcodedDebugMode">
+        tools:ignore="HardcodedDebugMode"
+        >
         <activity
             android:name="ConnectActivity"
             android:label="@string/app_name"

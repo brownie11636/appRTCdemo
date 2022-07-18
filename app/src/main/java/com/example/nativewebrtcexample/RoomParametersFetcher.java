@@ -32,7 +32,7 @@ import org.webrtc.SessionDescription;
  * AsyncTask that converts an AppRTC room URL into the set of signaling
  * parameters to use with that room.
  */
-public class RoomParametersFetcher {
+public class RoomParametersFetcher {    //makeRequest 함수를 위한 class
   private static final String TAG = "RoomRTCClient";
   private static final int TURN_HTTP_TIMEOUT_MS = 5000;
   private final RoomParametersFetcherEvents events;
@@ -126,7 +126,7 @@ public class RoomParametersFetcher {
       Log.d(TAG, "WSS POST url: " + wssPostUrl);
 
       List<PeerConnection.IceServer> iceServers =
-          iceServersFromPCConfigJSON(roomJson.getString("pc_config"));
+          iceServersFromPCConfigJSON(roomJson.getString("pc_config"));    ////
       boolean isTurnPresent = false;
       for (PeerConnection.IceServer server : iceServers) {
         Log.d(TAG, "IceServer: " + server);
