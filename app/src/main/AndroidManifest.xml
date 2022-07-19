@@ -41,10 +41,10 @@
                 <category android:name="android.intent.category.BROWSABLE" />
 
                 <data
-                    android:host="appr.tc"
+                    android:host="192.168.0.11:3333"
                     android:scheme="https" />
                 <data
-                    android:host="appr.tc"
+                    android:host="192.168.0.11:3333"
                     android:scheme="http" />
             </intent-filter>
         </activity>

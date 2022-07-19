@@ -10,7 +10,7 @@
 
 package com.example.nativewebrtcexample;
 
-import static com.example.nativewebrtcexample.SocketIO_Utils.mSocket;
+//import static com.example.nativewebrtcexample.SocketIO_Utils.mSocket;
 
 import android.app.Activity;
 import android.app.AlertDialog;
@@ -43,6 +43,9 @@ import com.example.nativewebrtcexample.AppRTCClient.RoomConnectionParameters;
 import com.example.nativewebrtcexample.AppRTCClient.SignalingParameters;
 import com.example.nativewebrtcexample.PeerConnectionClient.DataChannelParameters;
 import com.example.nativewebrtcexample.PeerConnectionClient.PeerConnectionParameters;
+
+import org.json.JSONException;
+import org.json.JSONObject;
 import org.webrtc.Camera1Enumerator;
 import org.webrtc.Camera2Enumerator;
 import org.webrtc.CameraEnumerator;
@@ -69,6 +72,8 @@ public class CallActivity extends Activity implements AppRTCClient.SignalingEven
                                                       PeerConnectionClient.PeerConnectionEvents,
                                                       CallFragment.OnCallEvents {
   private static final String TAG = "CallRTCClient";
+
+  public static final String EXTRA_SERVICE_PROFILE = "com.example.nativewebrtcexample.SERVICE_PROFILE";
 
   public static final String EXTRA_ROOMID = "com.example.nativewebrtcexample.ROOMID";
   public static final String EXTRA_URLPARAMETERS = "com.example.nativewebrtcexample.URLPARAMETERS";
@@ -185,6 +190,8 @@ public class CallActivity extends Activity implements AppRTCClient.SignalingEven
   private HudFragment hudFragment;
   private CpuMonitor cpuMonitor;
 
+  private MyService mService;
+
   @Override
   // TODO(bugs.webrtc.org/8580): LayoutParams.FLAG_TURN_SCREEN_ON and
   // LayoutParams.FLAG_SHOW_WHEN_LOCKED are deprecated.
@@ -289,6 +296,13 @@ public class CallActivity extends Activity implements AppRTCClient.SignalingEven
       return;
     }
 
+    try {
+      mService = new MyService(new JSONObject( intent.getStringExtra(EXTRA_SERVICE_PROFILE)));
+    } catch (JSONException e) {
+      e.printStackTrace();
+      Log.e(TAG, "fail to create MyServiceProfile");
+    }
+
     boolean loopback = intent.getBooleanExtra(EXTRA_LOOPBACK, false);
     boolean tracing = intent.getBooleanExtra(EXTRA_TRACING, false);
 
@@ -336,7 +350,7 @@ public class CallActivity extends Activity implements AppRTCClient.SignalingEven
 ////      appRtcClient = new SocketIO_RTCClient(this);
     if (loopback || !DirectRTCClient.IP_PATTERN.matcher(roomId).matches()) {
       appRtcClient = new SocketIO_RTCClient(this);
-      Log.i("TAG","SocketIO_RTCClient is ON");
+      Log.i(TAG,"SocketIO_RTCClient is ON");
     } else {
       Log.i(TAG, "Using DirectRTCClient because room name looks like an IP.");
       appRtcClient = new DirectRTCClient(this);
@@ -344,7 +358,7 @@ public class CallActivity extends Activity implements AppRTCClient.SignalingEven
     // Create connection parameters.
     String urlParameters = intent.getStringExtra(EXTRA_URLPARAMETERS);
     roomConnectionParameters =
-        new RoomConnectionParameters(roomUri.toString(), roomId, loopback, urlParameters);
+        new RoomConnectionParameters(mService.profile, roomUri.toString(), roomId, loopback, urlParameters);
 
     // Create CPU monitor
     if (CpuMonitor.isSupported()) {

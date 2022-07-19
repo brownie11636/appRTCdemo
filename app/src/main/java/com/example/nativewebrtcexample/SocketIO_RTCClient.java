@@ -10,7 +10,7 @@
 
 package com.example.nativewebrtcexample;
 
-import static com.example.nativewebrtcexample.SocketIO_Utils.mSocket;
+//import static com.example.nativewebrtcexample.SocketIO_Utils.mSocket;
 
 import android.os.Handler;
 import android.os.HandlerThread;
@@ -26,6 +26,8 @@ import org.json.JSONException;
 import org.json.JSONObject;
 import org.webrtc.IceCandidate;
 import org.webrtc.SessionDescription;
+
+import io.socket.client.Socket;
 
 /**
  * Negotiates signaling for chatting with https://appr.tc "rooms".
@@ -55,6 +57,8 @@ public class SocketIO_RTCClient implements AppRTCClient, WebSocketChannelEvents 
   private RoomConnectionParameters connectionParameters;
   private String messageUrl;
   private String leaveUrl;
+  private Socket socket;
+  private SocketIO_Utils mSocketUtils;
 
   public SocketIO_RTCClient(SignalingEvents events) {   //call Activity가 SignalingEvent 구현한것
     this.events = events;
@@ -69,10 +73,11 @@ public class SocketIO_RTCClient implements AppRTCClient, WebSocketChannelEvents 
   // Asynchronously connect to an AppRTC room URL using supplied connection
   // parameters, retrieves room parameters and connect to WebSocket server.
   @Override
-  //callActivity에서 실행
+  //callActivity의 startCall()에서 실행
   public void connectToRoom(RoomConnectionParameters connectionParameters) {
     //이 RoomConnectionParameter는 connectActivity에서 callActvity부를 때 같이 넘기도록 하자
-    this.connectionParameters = connectionParameters;
+    this.connectionParameters = connectionParameters; //RoomConnectionParameters(roomUri.toString(), roomId, loopback, urlParameters)
+
     handler.post(new Runnable() {
       @Override
       public void run() {
@@ -94,18 +99,30 @@ public class SocketIO_RTCClient implements AppRTCClient, WebSocketChannelEvents 
 
   // Connects to room - function runs on a local looper thread.
   private void connectToRoomInternal() {
-    String connectionUrl = getConnectionUrl(connectionParameters);
-    Log.d(TAG, "Connect to room: " + connectionUrl);
+//    String connectionUrl = getConnectionUrl(connectionParameters);
+    String roomUri = connectionParameters.roomUrl;
+    String roomId = connectionParameters.roomId;
+    Log.d(TAG, "Connect to room: " + roomId + " of " + roomUri);
     roomState = ConnectionState.NEW;
 //    wsClient = new WebSocketChannelClient(handler, this);
+    mSocketUtils = new SocketIO_Utils();
+    socket = mSocketUtils.init();   //사실 URL은 init함수 안에 들어가 있음
+
+    JSONObject profile = connectionParameters.profile;
 
     RoomParametersFetcherEvents callbacks = new RoomParametersFetcherEvents() {
       @Override
       public void onSignalingParametersReady(final SignalingParameters params) {
+        /**
+         * Callback fired once the room's signaling parameters
+         * SignalingParameters are extracted.
+         */
         SocketIO_RTCClient.this.handler.post(new Runnable() {
           @Override
           public void run() {
             SocketIO_RTCClient.this.signalingParametersReady(params);
+            //대충 signaling parameter가 준비되면 이 함수를 실행하라는건데 signalingParameter를 어디서..?
+            //roomParameterFetcher에서 가져오는군 여기를 고쳐야겠는데
           }
         });
       }
@@ -115,8 +132,9 @@ public class SocketIO_RTCClient implements AppRTCClient, WebSocketChannelEvents 
         SocketIO_RTCClient.this.reportError(description);
       }
     };
-
-    new RoomParametersFetcher(connectionUrl, null, callbacks).makeRequest();
+// RoomPrarmetersFetcher가 받는 인자에 socket 추가 그리고 connectionUrl대신 RoomId
+//    new RoomParametersFetcher(connectionUrl, null, callbacks).makeRequest();
+    new RoomParametersFetcher(profile, roomId, null, callbacks, socket).makeRequest();
   }
 
   // Disconnect from room and send bye messages - runs on a local looper thread.

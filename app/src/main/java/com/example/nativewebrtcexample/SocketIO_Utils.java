@@ -1,10 +1,14 @@
 package com.example.nativewebrtcexample;
 
+import android.os.Handler;
+import android.os.HandlerThread;
 import android.util.Log;
 
 import org.json.JSONArray;
 import org.json.JSONException;
 import org.json.JSONObject;
+import org.webrtc.IceCandidate;
+import org.webrtc.SessionDescription;
 
 import java.net.URISyntaxException;
 import java.security.KeyManagementException;
@@ -31,25 +35,48 @@ import okhttp3.OkHttpClient;
 public class SocketIO_Utils {
 
     //    public static socket socket;
-    private static final String TAG = "SocketIO_Utils";
-    public static IO.Options options = new IO.Options();
-    public static Dispatcher dispatcher;
-    public static String uri = "https://192.168.0.11:3333";
-    public static SSLContext sslContext = null;
+    private  final String TAG = "SocketIO_Utils";
+    public  IO.Options options = new IO.Options();
+    public  Dispatcher dispatcher;
+    public  String uri = "https://192.168.0.11:3333";
+    public  SSLContext sslContext = null;
 
-    public static boolean isInitiator;
-    public static boolean isStarted;
-    public static boolean isChannelReady;
+    public  boolean isInitiator;
+    public  boolean isStarted;
+    public  boolean isChannelReady;
 //    public SocketIO_RTCClient RTCClient;
 
 
-    public static io.socket.client.Socket mSocket;
+    public Socket mSocket;
 
-//    public SocketIO_Utils(Manager io, String nsp, Manager.Options opts) {
-//        super(io, nsp, opts);
+/////////from webSockerRTCClient
+////    private static final String TAG = "SOCKETIO_RTCClient";
+//    private static final String ROOM_JOIN = "join";
+//    private static final String ROOM_MESSAGE = "message";
+//    private static final String ROOM_LEAVE = "leave";
+//
+//    private enum ConnectionState { NEW, CONNECTED, CLOSED, ERROR }
+//
+//    private enum MessageType { MESSAGE, LEAVE }
+//
+////    private final Handler handler;
+//    private boolean initiator;
+//    private SignalingEvents events;
+//    private WebSocketChannelClient wsClient;
+//    private ConnectionState roomState;
+//    private RoomConnectionParameters connectionParameters;
+//    private String messageUrl;
+//    private String leaveUrl;
+
+//    public SocketIO_Utils(SignalingEvents events) {   //call Activity가 SignalingEvent 구현한것
+//        this.events = events;
+//        roomState = ConnectionState.NEW;
+////        final HandlerThread handlerThread = new HandlerThread(TAG);
+////        handlerThread.start();
+////        handler = new Handler(handlerThread.getLooper());
 //    }
 
-    public static synchronized Socket init() {
+    public Socket init() {
         options = new IO.Options();
         options.transports = new String[]{WebSocket.NAME};
 
@@ -70,24 +97,51 @@ public class SocketIO_Utils {
 //            Log.i(TAG, "type of packet: " + packet.getClass().getName());
 //            Log.i(TAG, "packet[0]: " + packet[0]);
 
+
+
             try {
                 Log.i(TAG, "received from: " + ((JSONObject)packet[0]).getString("from") +" to: "+ ((JSONObject)packet[0]).getString("to"));
                 JSONObject message = (JSONObject)((JSONObject) packet[0]).get("message");
                 Log.i(TAG,"message: " + message);
                 Log.i(TAG, "type: " + message.getString("type"));
+                String type = message.getString("type");
 
-//                RTCClient.RoomConnectionParameters.roomUrl = uri;
-//                RTCClient.RoomConnectionParameters.roomId = uri;
-//                RTCClient.RoomConnectionParameters.roomUrl = uri;
-//                RTCClient.RoomConnectionParameters.roomUrl = uri;
+//                if (type.equals("candidate")) {
+//                    events.onRemoteIceCandidate(toJavaCandidate(json));
+//                } else if (type.equals("remove-candidates")) {    //준화코드는 remove-candidates은 없음
+//                    JSONArray candidateArray = json.getJSONArray("candidates");
+//                    IceCandidate[] candidates = new IceCandidate[candidateArray.length()];
+//                    for (int i = 0; i < candidateArray.length(); ++i) {
+//                        candidates[i] = toJavaCandidate(candidateArray.getJSONObject(i));
+//                    }
+//                    events.onRemoteIceCandidatesRemoved(candidates);
+//                } else if (type.equals("answer")) {
+//                    if (initiator) {
+//                        SessionDescription sdp = new SessionDescription(
+//                                SessionDescription.Type.fromCanonicalForm(type), json.getString("sdp"));
+//                        events.onRemoteDescription(sdp);
+//                    } else {
+//                        reportError("Received answer for call initiator: " + msg);
+//                    }
+//                } else if (type.equals("offer")) {
+//                    if (!initiator) {
+//                        SessionDescription sdp = new SessionDescription(
+//                                SessionDescription.Type.fromCanonicalForm(type), json.getString("sdp"));     //java 내부의 SessionDescription class에 타입이 이미 OFFER, PRANSWER, ANSWER, ROLLBACK으로 정의되어있음
+//                        events.onRemoteDescription(sdp);
+//                    } else {
+//                        reportError("Received offer for call receiver: " + msg);
+//                    }
+//                } else if (type.equals("bye")) {
+//                    events.onChannelClose();
+//                } else {
+//                    reportError("Unexpected WebSocket message: " + msg);
+//                }
 
-                if (message.get("type").equals("offer")){
-                    if(!isInitiator && !isStarted){
-//                        maybeStart();         ///////////////
-                    }
-
-
-                }
+//                if (message.get("type").equals("offer")){
+//                    if(!isInitiator && !isStarted){
+////                        maybeStart();         ///////////////
+//                    }
+//                }
             } catch (JSONException e) {
                 e.printStackTrace();
             }
@@ -130,16 +184,7 @@ public class SocketIO_Utils {
             }
         });
 
-//        JSONObject query = new JSONObject();
-        JSONArray query = new JSONArray();
-        try {
-            query.put(new JSONObject().put("header","ServiceList").put("filter", null));
-//            query.put(new JSONObject().put("filter", null));
-            Log.i(TAG,"request query:" + query);
-            mSocket.emit("q_service",query);
-        } catch (JSONException e) {
-            e.printStackTrace();
-        }
+
 
         mSocket.on(Socket.EVENT_CONNECT_ERROR, new Emitter.Listener() {
             @Override
@@ -168,7 +213,7 @@ public class SocketIO_Utils {
 //        Log.i(TAG,">>>>>>>maybeStart()"+isStarted+LocalStream+isChannelReady);
     }
 
-    public static void sendToPeer(String message) {
+    public  void sendToPeer(String message) {
         try {
             JSONObject packet = new JSONObject().put("from",mSocket.id())
                     .put("to",null).put("message",message);
@@ -180,7 +225,7 @@ public class SocketIO_Utils {
         }
     }
 
-    public static void sendToPeer(Object packet) {
+    public  void sendToPeer(Object packet) {
         mSocket.emit("msg-v1",packet);
         Log.i(TAG,"send message to Peer: " + packet);
     }
@@ -243,11 +288,9 @@ public class SocketIO_Utils {
 
 
     //    https://socketio.github.io/socket.io-client-java/faq.html#How_to_properly_close_a_client
-    public static void closeClient(){
-        mSocket.disconnect();
+    public void closeClient(Socket socket){
+        socket.disconnect();
         dispatcher.executorService().shutdown();
     }
-
-
 
 }

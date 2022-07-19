@@ -10,7 +10,7 @@
 
 package com.example.nativewebrtcexample;
 
-import static com.example.nativewebrtcexample.SocketIO_Utils.mSocket;
+//import static com.example.nativewebrtcexample.SocketIO_Utils.mSocket;
 
 import android.annotation.TargetApi;
 import android.app.Activity;
@@ -49,6 +49,8 @@ import org.json.JSONArray;
 import org.json.JSONException;
 import org.json.JSONObject;
 
+import io.socket.client.Socket;
+
 /**
  * Handles the initial setup where the user selects which room to join.
  */
@@ -63,6 +65,8 @@ public class ConnectActivity extends Activity {
   private RecyclerView mPostRecyclerView;
   private ServiceProfileAdapter mAdapter;
   private ArrayList<MyService> mProfiles;
+  private SocketIO_Utils mSocketUtils;
+  private Socket mSocket;
 
   private ImageButton addFavoriteButton;
   private EditText roomEditText;
@@ -113,25 +117,26 @@ public class ConnectActivity extends Activity {
       public void onItemClicked(int position, MyService service) {
         Toast.makeText(getApplicationContext(),"buttonClicked",Toast.LENGTH_LONG);
 
-        String roomId = mSocket.id();
-        connectToRoom(roomId, false, false, false, 0);
+        String roomId = service.socketID;
+        connectToRoom(service, roomId, false, false, false, 0);
 
-//                SocketIO_Utils.sendToPeer("");
-        try {
-          mSocket.emit("Join_Service",service.profile.get("service"));
-          Log.i(TAG, "send Join_Service message: " + service.profile.get("service"));
-          mSocket.emit("msg-v1", new JSONObject().put("from", mSocket.id()));
-          Log.i(TAG, "send message to Peer from" + mSocket.id());
-        } catch (JSONException e) {
-          e.printStackTrace();
-          Log.e(TAG, "fail to send json socketId");
-        }
 
-        if(service.getDescription().equals("Streamer")) {
-          //gotStream() in robot_viewer.js
-          Log.i(TAG,"Adding local stream."); //??
-          SocketIO_Utils.sendToPeer("connection request");
-        }
+//        callActivity로 보내야함
+
+//        try {
+//          mSocket.emit("Join_Service",service.profile.get("service"));
+//          Log.i(TAG, "send Join_Service message: " + service.profile.get("service"));
+//          mSocket.emit("msg-v1", new JSONObject().put("from", mSocket.id()));
+//          Log.i(TAG, "send message to Peer from" + mSocket.id());
+//        } catch (JSONException e) {
+//          e.printStackTrace();
+//          Log.e(TAG, "fail to send json socketId");
+//        }
+//        if(service.getDescription().equals("Streamer")) {
+//          //gotStream() in robot_viewer.js
+//          Log.i(TAG,"Adding local stream."); //??
+//          mSocketUtils.sendToPeer("connection request");
+//        }
 
       }
     });
@@ -139,8 +144,20 @@ public class ConnectActivity extends Activity {
 
 
     ////////Socket creation and connection By Yeosang
-    SocketIO_Utils.init();
+//    SocketIO_Utils.init();
+    mSocketUtils = new SocketIO_Utils();
+    mSocket = mSocketUtils.init();
     mSocket.connect();
+
+    try {
+      JSONArray query = new JSONArray();
+      query.put(new JSONObject().put("header","ServiceList").put("filter", null));
+//            query.put(new JSONObject().put("filter", null));
+      Log.i(TAG,"request query:" + query);
+      mSocket.emit("q_service",query);
+    } catch (JSONException e) {
+      e.printStackTrace();
+    }
 
     //q_result 부분은 mAdapter.notifyDataSetChanged(); 때문에 다른 class로 넘기기가 좀 애매하네
     mSocket.on("q_result", q_result -> {
@@ -164,17 +181,17 @@ public class ConnectActivity extends Activity {
             JSONArray data = (JSONArray)(((JSONArray) q_result[0]).getJSONObject(0)).get("data");
 
             for (int i = 0; i < data.length(); i++) {
-              Log.i(TAG,"iiii =" + i);
+//              Log.i(TAG,"iiii =" + i);
               //여기서 listView에 목록 집어넣어야함 그전에 parsing 이나 array 변환 해야할듯
               mProfiles.add(new MyService(data.getJSONObject(i)));
 
 //                            Log.i("socket", "socketID: " + MyService.create(data.getJSONObject(i)).getSocketID());
-              Log.i(TAG, "socketID: " + data.getJSONObject(i).getString("socketId"));
-              Log.i(TAG, "mProfile "+i+": " + mProfiles.get(i).getSocketID());
+//              Log.i(TAG, "socketID: " + data.getJSONObject(i).getString("socketId"));
+              Log.i(TAG, "mProfile "+i+": " + mProfiles.get(i).socketID);
 //                            Log.i("socket", "nickname: " + profile.getNickname());
-              for(int j = 0 ; j< mProfiles.size(); j++){
-                Log.i(TAG,"Profiles(" + j + ")" + mProfiles.get(j).getSocketID());
-              }
+//              for(int j = 0 ; j< mProfiles.size(); j++){
+//                Log.i(TAG,"Profiles(" + j + ")" + mProfiles.get(j).getSocketID());
+//              }
             }
 
           }else{
@@ -310,6 +327,12 @@ public class ConnectActivity extends Activity {
 //    }
   }
 
+  @Override   //ListView 관련은 주석처리 recyclerView로 바꿔줘야함 근데 잘 모르겠네 밑에있는 부분 왜 있는지
+  public void onDestroy() {
+    super.onDestroy();
+    mSocketUtils.closeClient(mSocket);
+  }
+
   @Override
   protected void onActivityResult(int requestCode, int resultCode, Intent data) {
     if (requestCode == CONNECTION_REQUEST && commandLineRun) {
@@ -353,6 +376,8 @@ public class ConnectActivity extends Activity {
   private void onPermissionsGranted() {
     // If an implicit VIEW intent is launching the app, go directly to that URL.
     final Intent intent = getIntent();
+    Log.i(TAG,"Now in the onPermissionsGranted()");
+    //there is no service profile
     if ("android.intent.action.VIEW".equals(intent.getAction()) && !commandLineRun) {
       boolean loopback = intent.getBooleanExtra(CallActivity.EXTRA_LOOPBACK, false);
       int runTimeMs = intent.getIntExtra(CallActivity.EXTRA_RUNTIME, 0);
@@ -467,7 +492,11 @@ public class ConnectActivity extends Activity {
   }
 
   @SuppressWarnings("StringSplitter")
-  private void connectToRoom(String roomId, boolean commandLineRun, boolean loopback,
+  private void connectToRoom (String roomId, boolean commandLineRun, boolean loopback,
+                              boolean useValuesFromIntent, int runTimeMs){
+    connectToRoom(null,roomId, commandLineRun, loopback, useValuesFromIntent, runTimeMs);
+  }
+  private void connectToRoom(MyService service,String roomId, boolean commandLineRun, boolean loopback,
       boolean useValuesFromIntent, int runTimeMs) {
     ConnectActivity.commandLineRun = commandLineRun;
 
@@ -476,8 +505,10 @@ public class ConnectActivity extends Activity {
       roomId = Integer.toString((new Random()).nextInt(100000000));
     }
 
-    String roomUrl = sharedPref.getString(
-        keyprefRoomServerUrl, getString(R.string.pref_room_server_url_default));
+//    String roomUrl = sharedPref.getString(
+//        keyprefRoomServerUrl, getString(R.string.pref_room_server_url_default));
+
+    String roomUrl = "https://192.168.0.11";
 
     // Video call enabled flag.
     boolean videoCallEnabled = sharedPrefGetBoolean(R.string.pref_videocall_key,
@@ -659,6 +690,7 @@ public class ConnectActivity extends Activity {
       Uri uri = Uri.parse(roomUrl);
       Intent intent = new Intent(this, CallActivity.class);
       intent.setData(uri);
+      intent.putExtra(CallActivity.EXTRA_SERVICE_PROFILE, service.profile.toString());
       intent.putExtra(CallActivity.EXTRA_ROOMID, roomId);
       intent.putExtra(CallActivity.EXTRA_LOOPBACK, loopback);
       intent.putExtra(CallActivity.EXTRA_VIDEO_CALL, videoCallEnabled);

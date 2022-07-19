@@ -10,6 +10,7 @@
 
 package com.example.nativewebrtcexample;
 
+import org.json.JSONObject;
 import org.webrtc.IceCandidate;
 import org.webrtc.PeerConnection;
 import org.webrtc.SessionDescription;
@@ -28,15 +29,18 @@ public interface AppRTCClient {
     public final String roomId;     //룸 넘버 socketId로 쓰면 될듯
     public final boolean loopback;  //이건 버리지 뭐
     public final String urlParameters;    //AppRTC 사이트랑 https통신할때 url 뒤에 붙여서 parameter들 조절하는 String 나는 쓸일없네 https://github.com/webrtc/samples/wiki/AppRTC-URL-parameter-guide
+    public JSONObject profile = null;
     public RoomConnectionParameters(
-        String roomUrl, String roomId, boolean loopback, String urlParameters) {
+        JSONObject profile, String roomUrl, String roomId, boolean loopback, String urlParameters) {
+      this.profile = profile;
+
       this.roomUrl = roomUrl;
       this.roomId = roomId;
       this.loopback = loopback;
       this.urlParameters = urlParameters;
     }
-    public RoomConnectionParameters(String roomUrl, String roomId, boolean loopback) {
-      this(roomUrl, roomId, loopback, null /* urlParameters */);
+    public RoomConnectionParameters(JSONObject profile,String roomUrl, String roomId, boolean loopback) {
+      this(profile, roomUrl, roomId, loopback, null /* urlParameters */);
     }
   }
 

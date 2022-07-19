@@ -10,6 +10,8 @@
 
 package com.example.nativewebrtcexample;
 
+//import static com.example.nativewebrtcexample.SocketIO_Utils.mSocket;
+
 import android.util.Log;
 import java.io.IOException;
 import java.io.InputStream;
@@ -28,6 +30,8 @@ import org.webrtc.IceCandidate;
 import org.webrtc.PeerConnection;
 import org.webrtc.SessionDescription;
 
+import io.socket.client.Socket;
+
 /**
  * AsyncTask that converts an AppRTC room URL into the set of signaling
  * parameters to use with that room.
@@ -36,8 +40,13 @@ public class RoomParametersFetcher {    //makeRequest 함수를 위한 class
   private static final String TAG = "RoomRTCClient";
   private static final int TURN_HTTP_TIMEOUT_MS = 5000;
   private final RoomParametersFetcherEvents events;
-  private final String roomUrl;
+  private final String roomId;
+//  private final String roomUrl;
   private final String roomMessage;
+  private  String roomMessag;
+
+  private JSONObject profile;
+  private final Socket socket;
 
   /**
    * Room parameters fetcher callbacks.
@@ -56,30 +65,35 @@ public class RoomParametersFetcher {    //makeRequest 함수를 위한 class
   }
 
   public RoomParametersFetcher(
-      String roomUrl, String roomMessage, final RoomParametersFetcherEvents events) {
-    this.roomUrl = roomUrl;
+      JSONObject profile, String roomId, String roomMessage, final RoomParametersFetcherEvents events, Socket socket) {
+    this.roomId = roomId;
     this.roomMessage = roomMessage;
     this.events = events;
+
+    this.socket = socket;
+    this.profile = profile;
   }
 
   public void makeRequest() {
-    Log.d(TAG, "Connecting to room: " + roomUrl);
-    AsyncHttpURLConnection httpConnection =
-        new AsyncHttpURLConnection("POST", roomUrl, roomMessage, new AsyncHttpEvents() {
-          @Override
-          public void onHttpError(String errorMessage) {
-            Log.e(TAG, "Room connection error: " + errorMessage);
-            events.onSignalingParametersError(errorMessage);
-          }
 
-          @Override
-          public void onHttpComplete(String response) {
-            roomHttpResponseParse(response);
-          }
-        });
+    Log.d(TAG, "Connecting to room: " + roomId);
+//    AsyncHttpURLConnection httpConnection =
+//        new AsyncHttpURLConnection("POST", roomUrl, roomMessage, new AsyncHttpEvents() {
+//          @Override
+//          public void onHttpError(String errorMessage) {
+//            Log.e(TAG, "Room connection error: " + errorMessage);
+//            events.onSignalingParametersError(errorMessage);
+//          }
+//
+//          @Override
+//          public void onHttpComplete(String response) {
+//            roomHttpResponseParse(response);
+//          }
+//        });
+    Socket.on("")
     httpConnection.send();
   }
-
+//룸을 만드는 입장일때 쓰는듯
   private void roomHttpResponseParse(String response) {
     Log.d(TAG, "Room response: " + response);
     try {
@@ -166,7 +180,7 @@ public class RoomParametersFetcher {    //makeRequest 함수를 위한 class
     Log.d(TAG, "Request TURN from: " + url);
     HttpURLConnection connection = (HttpURLConnection) new URL(url).openConnection();
     connection.setDoOutput(true);
-    connection.setRequestProperty("REFERER", "https://appr.tc");
+    connection.setRequestProperty("REFERER", "https://192.168.0.11:3333");
     connection.setConnectTimeout(TURN_HTTP_TIMEOUT_MS);
     connection.setReadTimeout(TURN_HTTP_TIMEOUT_MS);
     int responseCode = connection.getResponseCode();
