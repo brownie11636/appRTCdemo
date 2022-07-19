@@ -92,7 +92,7 @@ public class SocketIO_Utils {
             }
         }
 
-        mSocket.on("msg-v1", packet -> {
+        mSocket.on("msg-v1""msg-v1", packet -> {
 //            Log.i(TAG,"packet from Peer: " + packet);
 //            Log.i(TAG, "type of packet: " + packet.getClass().getName());
 //            Log.i(TAG, "packet[0]: " + packet[0]);

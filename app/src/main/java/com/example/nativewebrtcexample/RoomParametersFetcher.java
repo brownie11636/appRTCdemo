@@ -90,16 +90,35 @@ public class RoomParametersFetcher {    //makeRequest 함수를 위한 class
 //            roomHttpResponseParse(response);
 //          }
 //        });
-    Socket.on("")
-    httpConnection.send();
+    socket.on("msg-v1", packet -> {
+      msgResponseParse((JSONObject) packet[0]);
+    });
+
+//    httpConnection.send();
+    try {
+      socket.emit("Join_Service",this.profile.get("service"));
+      Log.i(TAG, "send Join_Service message: " + this.profile.get("service"));
+      socket.emit("msg-v1", new JSONObject().put("from", socket.id()));
+      Log.i(TAG, "send message to Peer from" + socket.id());
+    } catch (JSONException e) {
+      e.printStackTrace();
+      Log.e(TAG, "fail to send json socketId");
+    }
+    if(service.getDescription().equals("Streamer")) {
+      //gotStream() in robot_viewer.js
+      Log.i(TAG,"Adding local stream."); //??
+//      mSocketUtils.sendToPeer("connection request");
+    }
   }
 //룸을 만드는 입장일때 쓰는듯
-  private void roomHttpResponseParse(String response) {
-    Log.d(TAG, "Room response: " + response);
+//private void roomHttpResponseParse(String response) {
+private void msgResponseParse(JSONObject roomJson) {
+//  Log.d(TAG, "Room response: " + response);
+  Log.d(TAG, "Room response: " + roomJson);
     try {
       List<IceCandidate> iceCandidates = null;
       SessionDescription offerSdp = null;
-      JSONObject roomJson = new JSONObject(response);
+//      JSONObject roomJson = new JSONObject(response);
 
       String result = roomJson.getString("result");
       if (!result.equals("SUCCESS")) {
