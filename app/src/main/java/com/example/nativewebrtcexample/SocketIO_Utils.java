@@ -35,19 +35,20 @@ import okhttp3.OkHttpClient;
 public class SocketIO_Utils {
 
     //    public static socket socket;
-    private  final String TAG = "SocketIO_Utils";
-    public  IO.Options options = new IO.Options();
-    public  Dispatcher dispatcher;
-    public  String uri = "https://192.168.0.11:3333";
-    public  SSLContext sslContext = null;
+    private final String TAG = "SocketIO_Utils";
+    public IO.Options options = new IO.Options();
+    public Dispatcher dispatcher;
+    public String uri = "https://192.168.0.11:3333";
+    public SSLContext sslContext = null;
+    public String id = null;
 
     public  boolean isInitiator;
-    public  boolean isStarted;
-    public  boolean isChannelReady;
+//    public  boolean isStarted;
+    public  boolean isChannelReady; //방에 들어갔는지
 //    public SocketIO_RTCClient RTCClient;
 
 
-    public Socket mSocket;
+    public Socket socket;
 
 /////////from webSockerRTCClient
 ////    private static final String TAG = "SOCKETIO_RTCClient";
@@ -84,140 +85,94 @@ public class SocketIO_Utils {
 
         setSSLOkHttp(options, sslContext, dispatcher);
 
-        if(mSocket == null) {
+        if(socket == null) {
             try {
-                mSocket = IO.socket(uri, options);
+                socket = IO.socket(uri, options);
             } catch (URISyntaxException e) {
                 e.printStackTrace();
             }
         }
+//        this.id = mSocket.id();
 
-        mSocket.on("msg-v1""msg-v1", packet -> {
+//        mSocket.on("msg-v1", packet -> {
 //            Log.i(TAG,"packet from Peer: " + packet);
 //            Log.i(TAG, "type of packet: " + packet.getClass().getName());
 //            Log.i(TAG, "packet[0]: " + packet[0]);
+//                });
 
 
 
-            try {
-                Log.i(TAG, "received from: " + ((JSONObject)packet[0]).getString("from") +" to: "+ ((JSONObject)packet[0]).getString("to"));
-                JSONObject message = (JSONObject)((JSONObject) packet[0]).get("message");
-                Log.i(TAG,"message: " + message);
-                Log.i(TAG, "type: " + message.getString("type"));
-                String type = message.getString("type");
-
-//                if (type.equals("candidate")) {
-//                    events.onRemoteIceCandidate(toJavaCandidate(json));
-//                } else if (type.equals("remove-candidates")) {    //준화코드는 remove-candidates은 없음
-//                    JSONArray candidateArray = json.getJSONArray("candidates");
-//                    IceCandidate[] candidates = new IceCandidate[candidateArray.length()];
-//                    for (int i = 0; i < candidateArray.length(); ++i) {
-//                        candidates[i] = toJavaCandidate(candidateArray.getJSONObject(i));
-//                    }
-//                    events.onRemoteIceCandidatesRemoved(candidates);
-//                } else if (type.equals("answer")) {
-//                    if (initiator) {
-//                        SessionDescription sdp = new SessionDescription(
-//                                SessionDescription.Type.fromCanonicalForm(type), json.getString("sdp"));
-//                        events.onRemoteDescription(sdp);
-//                    } else {
-//                        reportError("Received answer for call initiator: " + msg);
-//                    }
-//                } else if (type.equals("offer")) {
-//                    if (!initiator) {
-//                        SessionDescription sdp = new SessionDescription(
-//                                SessionDescription.Type.fromCanonicalForm(type), json.getString("sdp"));     //java 내부의 SessionDescription class에 타입이 이미 OFFER, PRANSWER, ANSWER, ROLLBACK으로 정의되어있음
-//                        events.onRemoteDescription(sdp);
-//                    } else {
-//                        reportError("Received offer for call receiver: " + msg);
-//                    }
-//                } else if (type.equals("bye")) {
-//                    events.onChannelClose();
-//                } else {
-//                    reportError("Unexpected WebSocket message: " + msg);
-//                }
-
-//                if (message.get("type").equals("offer")){
-//                    if(!isInitiator && !isStarted){
-////                        maybeStart();         ///////////////
-//                    }
-//                }
-            } catch (JSONException e) {
-                e.printStackTrace();
-            }
-        });
-
-        mSocket.on("created", (room) -> {
-            Log.i(TAG,"Created room " + room);
-            isInitiator = true;
-        });
-
-        mSocket.on("full", (room) -> {
-            Log.i(TAG,"Room " + room + " is full");
-        });
-
-        mSocket.on("join", (room) -> {
-            Log.i(TAG,"Another peer made a request to join room " + room);
-            Log.i(TAG,"This peer is the initiator of room " + room + "!");
-            isChannelReady = true;
-//            RTCClient.RoomConnectionParameters.roomId = room;
-        });
-
-        mSocket.on("joined", (room) -> {
-            Log.i(TAG,"joined: " + room[0]);
-            isChannelReady = true;
-        });
-
-        mSocket.on("log", (array) -> {
-            Log.i(TAG, String.valueOf(array));
-        });
 
         // Socket서버에 connect 된 후, 서버로부터 전달받은 'socket.EVENT_CONNECT' Event 처리.
-        mSocket.on(Socket.EVENT_CONNECT, new Emitter.Listener() {
+        socket.on(Socket.EVENT_CONNECT, new Emitter.Listener() {
             @Override
             public void call(Object... args) {
                 // your code...
                 Log.i(TAG,"onConnect? ");
 
-                Log.i(TAG,"onConnect socketID is " + mSocket.id());
-                mSocket.emit("connectReceive", "OK");
+                Log.i(TAG,"onConnect socketID is " + socket.id());
+                socket.emit("connectReceive", "OK");
+                id = socket.id();
+                Log.i(TAG,"SocketUtils ID is " + id);
+
             }
         });
 
 
 
-        mSocket.on(Socket.EVENT_CONNECT_ERROR, new Emitter.Listener() {
+        socket.on(Socket.EVENT_CONNECT_ERROR, new Emitter.Listener() {
             @Override
             public void call(Object... args) {
 //                options.auth.put("authorization", "bearer 1234");
-                Log.d(TAG, "EVENT_CONNECT_ERROR " + mSocket.id());
-                mSocket.connect();
+                Log.d(TAG, "EVENT_CONNECT_ERROR " + socket.id());
+                socket.connect();
             }
         });
 
-        mSocket.on(Socket.EVENT_DISCONNECT, new Emitter.Listener() {
+        socket.on(Socket.EVENT_DISCONNECT, new Emitter.Listener() {
             @Override
             public void call(Object... args) {
-                Log.i(TAG,"disconnected "+ mSocket.id()); // null
+                Log.i(TAG,"disconnected "+ socket.id()); // null
             }
         });
 
-        mSocket.on("socketID", socketID -> {
-            Log.i(TAG,"ID is "+ socketID);
+        socket.on("socketID", socketID -> {
+            Log.i(TAG,"ID is "+ socketID[0]);
         });
 
-        return mSocket;
+
+        return socket;
     }
 
     private static void maybeStart() {
 //        Log.i(TAG,">>>>>>>maybeStart()"+isStarted+LocalStream+isChannelReady);
     }
 
-    public  void sendToPeer(String message) {
+    public String id(){
+        return this.id;
+    }
+
+    public void joinService(MyService service) {
+        if(service == null) {
+            Log.e(TAG,"Target service is null!!");
+        } else{
+            try {
+                socket.emit("Join_Service", service.profile.getJSONObject("service"));
+                Log.i(TAG, "send Join_Service message: " + service.profile.getJSONObject("service"));
+                socket.emit("msg-v1", new JSONObject().put("from", socket.id()));
+//      socketUtils.socket.emit("msg-v1", new JSONObject().put("from", socketUtils.socket.id()));
+                Log.i(TAG, "send message to Peer from " + socket.id());
+            } catch (JSONException e) {
+                e.printStackTrace();
+                Log.e(TAG, "fail to send json socketId");
+            }
+        }
+    }
+    public void sendToPeer(String message) {
         try {
-            JSONObject packet = new JSONObject().put("from",mSocket.id())
+            JSONObject packet = new JSONObject().put("from",socket.id())
                     .put("to",null).put("message",message);
-            mSocket.emit("msg-v1",packet);
+            socket.emit("msg-v1",packet);
             Log.i(TAG,"send message to Peer: " + packet);
         } catch (JSONException e) {
             e.printStackTrace();
@@ -225,10 +180,22 @@ public class SocketIO_Utils {
         }
     }
 
-    public  void sendToPeer(Object packet) {
-        mSocket.emit("msg-v1",packet);
-        Log.i(TAG,"send message to Peer: " + packet);
+    public void sendToPeer(JSONObject message) {
+        try {
+            JSONObject packet = new JSONObject().put("from",socket.id())
+                    .put("to",null).put("message",message);
+            socket.emit("msg-v1",packet);
+            Log.i(TAG,"send message to Peer: " + packet);
+        } catch (JSONException e) {
+            e.printStackTrace();
+            Log.e(TAG,"fail to create a packet");
+        }
     }
+
+//    public  void sendToPeer(JSONObject packet) {
+//        socket.emit("msg-v1",packet);
+//        Log.i(TAG,"send message to Peer: " + packet);
+//    }
 
     static HostnameVerifier hostnameVerifier = new HostnameVerifier() {
         @Override
@@ -288,9 +255,12 @@ public class SocketIO_Utils {
 
 
     //    https://socketio.github.io/socket.io-client-java/faq.html#How_to_properly_close_a_client
-    public void closeClient(Socket socket){
+    public void closeClient(){
         socket.disconnect();
+//        socket = null;
         dispatcher.executorService().shutdown();
     }
+
+//    public interface socket_connec
 
 }

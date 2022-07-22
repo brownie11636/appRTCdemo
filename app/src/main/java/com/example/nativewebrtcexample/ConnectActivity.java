@@ -66,7 +66,7 @@ public class ConnectActivity extends Activity {
   private ServiceProfileAdapter mAdapter;
   private ArrayList<MyService> mProfiles;
   private SocketIO_Utils mSocketUtils;
-  private Socket mSocket;
+//  private Socket mSocket;
 
   private ImageButton addFavoriteButton;
   private EditText roomEditText;
@@ -124,10 +124,10 @@ public class ConnectActivity extends Activity {
 //        callActivity로 보내야함
 
 //        try {
-//          mSocket.emit("Join_Service",service.profile.get("service"));
+//          mSocketUtils.socket.emit("Join_Service",service.profile.get("service"));
 //          Log.i(TAG, "send Join_Service message: " + service.profile.get("service"));
-//          mSocket.emit("msg-v1", new JSONObject().put("from", mSocket.id()));
-//          Log.i(TAG, "send message to Peer from" + mSocket.id());
+//          mSocketUtils.socket.emit("msg-v1", new JSONObject().put("from", mSocketUtils.socket.id()));
+//          Log.i(TAG, "send message to Peer from" + mSocketUtils.socket.id());
 //        } catch (JSONException e) {
 //          e.printStackTrace();
 //          Log.e(TAG, "fail to send json socketId");
@@ -146,21 +146,21 @@ public class ConnectActivity extends Activity {
     ////////Socket creation and connection By Yeosang
 //    SocketIO_Utils.init();
     mSocketUtils = new SocketIO_Utils();
-    mSocket = mSocketUtils.init();
-    mSocket.connect();
+    mSocketUtils.init();
+    mSocketUtils.socket.connect();
 
     try {
       JSONArray query = new JSONArray();
       query.put(new JSONObject().put("header","ServiceList").put("filter", null));
 //            query.put(new JSONObject().put("filter", null));
       Log.i(TAG,"request query:" + query);
-      mSocket.emit("q_service",query);
+      mSocketUtils.socket.emit("q_service",query);
     } catch (JSONException e) {
       e.printStackTrace();
     }
 
     //q_result 부분은 mAdapter.notifyDataSetChanged(); 때문에 다른 class로 넘기기가 좀 애매하네
-    mSocket.on("q_result", q_result -> {
+    mSocketUtils.socket.on("q_result", q_result -> {
       Log.i(TAG, "q_result" + q_result);       //[Ljava.lang.Object
       Log.i(TAG, "q_result[0]" + q_result[0]);     //org.json.JSONArray
 //            Log.i("socket", "q_result[1]" + q_result[1]);     //there is no q_result[1]
@@ -330,7 +330,7 @@ public class ConnectActivity extends Activity {
   @Override   //ListView 관련은 주석처리 recyclerView로 바꿔줘야함 근데 잘 모르겠네 밑에있는 부분 왜 있는지
   public void onDestroy() {
     super.onDestroy();
-    mSocketUtils.closeClient(mSocket);
+    mSocketUtils.closeClient();
   }
 
   @Override

@@ -349,8 +349,10 @@ public class CallActivity extends Activity implements AppRTCClient.SignalingEven
 //    if (loopback || !DirectRTCClient.IP_PATTERN.matcher(roomId).matches()) {
 ////      appRtcClient = new SocketIO_RTCClient(this);
     if (loopback || !DirectRTCClient.IP_PATTERN.matcher(roomId).matches()) {
-      appRtcClient = new SocketIO_RTCClient(this);
-      Log.i(TAG,"SocketIO_RTCClient is ON");
+//      appRtcClient = new SocketIO_RTCClient(this);
+      appRtcClient = new myRTCClient(this);
+//      Log.i(TAG,"SocketIO_RTCClient is ON");
+      Log.i(TAG,"MyRTCClient is ON");
     } else {
       Log.i(TAG, "Using DirectRTCClient because room name looks like an IP.");
       appRtcClient = new DirectRTCClient(this);
@@ -763,6 +765,8 @@ public class CallActivity extends Activity implements AppRTCClient.SignalingEven
     }
     peerConnectionClient.createPeerConnection(
         localProxyVideoSink, remoteSinks, videoCapturer, signalingParameters);
+    appRtcClient.notifyStarted();
+    Log.i(TAG,"peerConnection is created");
 
     if (signalingParameters.initiator) {
       logAndToast("Creating OFFER...");

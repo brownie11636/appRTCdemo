@@ -24,6 +24,7 @@ public interface AppRTCClient {
   /**
    * Struct holding the connection parameters of an AppRTC room.
    */
+
   class RoomConnectionParameters {
     public final String roomUrl;    //홈페이지 주소
     public final String roomId;     //룸 넘버 socketId로 쓰면 될듯
@@ -50,6 +51,9 @@ public interface AppRTCClient {
    * callback with room parameters is invoked.
    */
   void connectToRoom(RoomConnectionParameters connectionParameters);
+
+  //by Yeosang: notifying the PeerConnectionCreation
+  void notifyStarted();
 
   /**
    * Send offer SDP to the other participant.

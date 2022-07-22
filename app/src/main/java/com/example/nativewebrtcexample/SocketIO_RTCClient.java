@@ -28,6 +28,7 @@ import org.webrtc.IceCandidate;
 import org.webrtc.SessionDescription;
 
 import io.socket.client.Socket;
+import io.socket.emitter.Emitter;
 
 /**
  * Negotiates signaling for chatting with https://appr.tc "rooms".
@@ -39,13 +40,13 @@ import io.socket.client.Socket;
  * Messages to other party (with local Ice candidates and answer SDP) can
  * be sent after WebSocket connection is established.
  */
-public class SocketIO_RTCClient implements AppRTCClient, WebSocketChannelEvents {
+public class SocketIO_RTCClient implements AppRTCClient {
   private static final String TAG = "SOCKETIO_RTCClient";
   private static final String ROOM_JOIN = "join";
   private static final String ROOM_MESSAGE = "message";
   private static final String ROOM_LEAVE = "leave";
 
-  private enum ConnectionState { NEW, CONNECTED, CLOSED, ERROR }
+  public enum ConnectionState { NEW, CONNECTED, CLOSED, ERROR }
 
   private enum MessageType { MESSAGE, LEAVE }
 
@@ -53,12 +54,18 @@ public class SocketIO_RTCClient implements AppRTCClient, WebSocketChannelEvents 
   private boolean initiator;
   private SignalingEvents events;
   private WebSocketChannelClient wsClient;
-  private ConnectionState roomState;
+  private ConnectionState roomState;    //=>준화 코드에서 isChannelReady
   private RoomConnectionParameters connectionParameters;
   private String messageUrl;
   private String leaveUrl;
   private Socket socket;
   private SocketIO_Utils mSocketUtils;
+  private MyService service;
+  private RoomParametersFetcher roomFetcher;
+
+//  public  boolean isInitiator;
+  public  boolean isStarted;
+//  public  boolean isChannelReady; //방에 들어갔는지
 
   public SocketIO_RTCClient(SignalingEvents events) {   //call Activity가 SignalingEvent 구현한것
     this.events = events;
@@ -105,10 +112,48 @@ public class SocketIO_RTCClient implements AppRTCClient, WebSocketChannelEvents 
     Log.d(TAG, "Connect to room: " + roomId + " of " + roomUri);
     roomState = ConnectionState.NEW;
 //    wsClient = new WebSocketChannelClient(handler, this);
+    isStarted = false;
     mSocketUtils = new SocketIO_Utils();
-    socket = mSocketUtils.init();   //사실 URL은 init함수 안에 들어가 있음
+    mSocketUtils.init();   //사실 URL은 init함수 안에 들어가 있음
 
-    JSONObject profile = connectionParameters.profile;
+    mSocketUtils.socket.on(Socket.EVENT_CONNECT, new Emitter.Listener() {
+      @Override
+      public void call(Object... args) {
+        // your code...
+        Log.i(TAG, "@RTCClient, socketID is " + mSocketUtils.socket.id());
+//                mSocketUtils.socket.emit("connectReceive", "OK");
+        mSocketUtils.id = mSocketUtils.socket.id();
+        Log.i(TAG, "SocketUtils ID is " + mSocketUtils.id);
+
+        roomFetcher.makeRequest();
+      }
+    });
+
+    mSocketUtils.socket.on("msg-v1",(packet)->{
+      String from = null;
+      String to = null;
+      JSONObject message = null;
+      try {
+        from = ((JSONObject) packet[0]).getString("from");
+        to = ((JSONObject) packet[0]).getString("to");
+        message = ((JSONObject) packet[0]).getJSONObject("message");
+      } catch (JSONException e) {
+        e.printStackTrace();
+      }
+      Log.i(TAG,"msg-v1 :" + packet);
+
+//      if(!isStarted) {
+//        roomFetcher.msgResponseParse((JSONObject) packet[0]);
+//      }
+      if(isStarted) {
+        onMessageFromPeer(message);
+      }
+    });
+
+    mSocketUtils.socket.connect();
+
+    service = new MyService(connectionParameters.profile);
+//    JSONObject profile = connectionParameters.profile;
 
     RoomParametersFetcherEvents callbacks = new RoomParametersFetcherEvents() {
       @Override
@@ -121,6 +166,7 @@ public class SocketIO_RTCClient implements AppRTCClient, WebSocketChannelEvents 
           @Override
           public void run() {
             SocketIO_RTCClient.this.signalingParametersReady(params);
+//            mSocketUtils.sendToPeer("asdasfdfasdf");
             //대충 signaling parameter가 준비되면 이 함수를 실행하라는건데 signalingParameter를 어디서..?
             //roomParameterFetcher에서 가져오는군 여기를 고쳐야겠는데
           }
@@ -134,7 +180,13 @@ public class SocketIO_RTCClient implements AppRTCClient, WebSocketChannelEvents 
     };
 // RoomPrarmetersFetcher가 받는 인자에 socket 추가 그리고 connectionUrl대신 RoomId
 //    new RoomParametersFetcher(connectionUrl, null, callbacks).makeRequest();
-    new RoomParametersFetcher(profile, roomId, null, callbacks, socket).makeRequest();
+    //지금 mSocketUtils.init이 끝나기전에 makerequest 함수가 돌아버리는것 같음
+    //makeRequest()를 socket onConnect에 넣음;
+    roomFetcher = new RoomParametersFetcher(service, isStarted, roomId, null, callbacks, mSocketUtils);
+
+
+
+
   }
 
   // Disconnect from room and send bye messages - runs on a local looper thread.
@@ -190,18 +242,26 @@ public class SocketIO_RTCClient implements AppRTCClient, WebSocketChannelEvents 
       Log.w(TAG, "No offer SDP in room response.");
     }
     initiator = signalingParameters.initiator;
-    messageUrl = getMessageUrl(connectionParameters, signalingParameters);
-    leaveUrl = getLeaveUrl(connectionParameters, signalingParameters);
+    messageUrl = getMessageUrl(connectionParameters, signalingParameters);  //to:
+    leaveUrl = getLeaveUrl(connectionParameters, signalingParameters);      //from:
     Log.d(TAG, "Message URL: " + messageUrl);
     Log.d(TAG, "Leave URL: " + leaveUrl);
     roomState = ConnectionState.CONNECTED;
 
     // Fire connection and signaling parameters events.
+    //얘는 call activity에 있을듯
+    //onConnectedToRoomInternal()로 연결됨
+    //signalingParams를 받아서 local device에 맞는 PeerConnection 및 그 설정을 만드는듯
+    // initiator인 상황에서는 offerSdp, iceCandidate유무에 따라 관련 PC함수 실행을 하기도 함.
     events.onConnectedToRoom(signalingParameters);
 
+
     // Connect and register WebSocket client.
-    wsClient.connect(signalingParameters.wssUrl, signalingParameters.wssPostUrl);
-    wsClient.register(connectionParameters.roomId, signalingParameters.clientId);
+    //웹소켓 주소설정 우리는 필요없을듯
+//    wsClient.connect(signalingParameters.wssUrl, signalingParameters.wssPostUrl);
+    //위의 주소에 연결된 웹소켓에서 특정 room 및 client에 등록
+    //내가만든 sendToPeer()함수처럼 기능할수 있게 하는늒?ㅣㅁ
+//    wsClient.register(connectionParameters.roomId, signalingParameters.clientId);
   }
 
   // Send local offer SDP to the other participant.
@@ -217,7 +277,8 @@ public class SocketIO_RTCClient implements AppRTCClient, WebSocketChannelEvents 
         JSONObject json = new JSONObject();
         jsonPut(json, "sdp", sdp.description);
         jsonPut(json, "type", "offer");
-        sendPostMessage(MessageType.MESSAGE, messageUrl, json.toString());
+//        sendPostMessage(MessageType.MESSAGE, messageUrl, json.toString());
+        mSocketUtils.sendToPeer(json.toString());
         if (connectionParameters.loopback) {
           // In loopback mode rename this offer to answer and route it back.
           SessionDescription sdpAnswer = new SessionDescription(
@@ -241,7 +302,11 @@ public class SocketIO_RTCClient implements AppRTCClient, WebSocketChannelEvents 
         JSONObject json = new JSONObject();
         jsonPut(json, "sdp", sdp.description);
         jsonPut(json, "type", "answer");
-        wsClient.send(json.toString());
+          //sendPostMessage를 안쓰고 이걸 쓴이유는..?
+        // 얘들은 방 정보를 긁어 오고 나서 WS connection을 만들어서 그전에 offer보낼수도 있는 것들은
+        //http 통신으로 한듯?
+//        wsClient.send(json.toString());
+        mSocketUtils.sendToPeer(json.toString());
       }
     });
   }
@@ -263,13 +328,16 @@ public class SocketIO_RTCClient implements AppRTCClient, WebSocketChannelEvents 
             reportError("Sending ICE candidate in non connected state.");
             return;
           }
-          sendPostMessage(MessageType.MESSAGE, messageUrl, json.toString());
+//          sendPostMessage(MessageType.MESSAGE, messageUrl, json.toString());
+          mSocketUtils.sendToPeer(json.toString());
+
           if (connectionParameters.loopback) {
             events.onRemoteIceCandidate(candidate);
           }
         } else {
           // Call receiver sends ice candidates to websocket server.
-          wsClient.send(json.toString());
+//          wsClient.send(json.toString());
+          mSocketUtils.sendToPeer(json.toString());
         }
       }
     });
@@ -294,85 +362,72 @@ public class SocketIO_RTCClient implements AppRTCClient, WebSocketChannelEvents 
             reportError("Sending ICE candidate removals in non connected state.");
             return;
           }
-          sendPostMessage(MessageType.MESSAGE, messageUrl, json.toString());
+//          sendPostMessage(MessageType.MESSAGE, messageUrl, json.toString());
+          mSocketUtils.sendToPeer(json.toString());
           if (connectionParameters.loopback) {
             events.onRemoteIceCandidatesRemoved(candidates);
           }
         } else {
           // Call receiver sends ice candidates to websocket server.
-          wsClient.send(json.toString());
+//          wsClient.send(json.toString());
+          mSocketUtils.sendToPeer(json.toString());
         }
       }
     });
   }
 
   // --------------------------------------------------------------------
-  // WebSocketChannelEvents interface implementation.
-  // All events are called by WebSocketChannelClient on a local looper thread
-  // (passed to WebSocket client constructor).
-  @Override
-  public void onWebSocketMessage(final String msg) {
-    if (wsClient.getState() != WebSocketConnectionState.REGISTERED) {
-      Log.e(TAG, "Got WebSocket message in non registered state.");
-      return;
-    }
+  public void onMessageFromPeer(final JSONObject message) {
+//    if (wsClient.getState() != WebSocketConnectionState.REGISTERED) {
+//      Log.e(TAG, "Got WebSocket message in non registered state.");
+//      return;
+//    }
     try {
-      JSONObject json = new JSONObject(msg);
-      String msgText = json.getString("msg");     //getString의 경우 키에 해당하는 값이 없는 경우 JsonException을 발생시키는 반면    https://sandn.tistory.com/89
-      String errorText = json.optString("error");   //optString은 ""와 같은 빈 문자열을 반환한다.  예상치 못한 에러를 방지하기 위해서는 optString을 사용하는 것이 좋다.
-      if (msgText.length() > 0) {
-        json = new JSONObject(msgText);     //이거 같은거 보면 msgText도 json형식인듯 json안에 json
-        String type = json.optString("type");
-        if (type.equals("candidate")) {
-          events.onRemoteIceCandidate(toJavaCandidate(json));
-        } else if (type.equals("remove-candidates")) {    //준화코드는 remove-candidates은 없음
-          JSONArray candidateArray = json.getJSONArray("candidates");
-          IceCandidate[] candidates = new IceCandidate[candidateArray.length()];
-          for (int i = 0; i < candidateArray.length(); ++i) {
-            candidates[i] = toJavaCandidate(candidateArray.getJSONObject(i));
-          }
-          events.onRemoteIceCandidatesRemoved(candidates);
-        } else if (type.equals("answer")) {
-          if (initiator) {
-            SessionDescription sdp = new SessionDescription(
-                SessionDescription.Type.fromCanonicalForm(type), json.getString("sdp"));
-            events.onRemoteDescription(sdp);
-          } else {
-            reportError("Received answer for call initiator: " + msg);
-          }
-        } else if (type.equals("offer")) {
-          if (!initiator) {
-            SessionDescription sdp = new SessionDescription(
-                SessionDescription.Type.fromCanonicalForm(type), json.getString("sdp"));     //java 내부의 SessionDescription class에 타입이 이미 OFFER, PRANSWER, ANSWER, ROLLBACK으로 정의되어있음
-            events.onRemoteDescription(sdp);
-          } else {
-            reportError("Received offer for call receiver: " + msg);
-          }
-        } else if (type.equals("bye")) {
-          events.onChannelClose();
+      String type = message.getString("type");     //getString의 경우 키에 해당하는 값이 없는 경우 JsonException을 발생시키는 반면    https://sandn.tistory.com/89
+//      String errorText = json.optString("error");   //optString은 ""와 같은 빈 문자열을 반환한다.  예상치 못한 에러를 방지하기 위해서는 optString을 사용하는 것이 좋다.
+//      if (msgText.length() > 0) {
+//        json = new JSONObject(msgText);     //이거 같은거 보면 msgText도 json형식인듯 json안에 json
+//        String type = json.optString("type");
+      if (type.equals("candidate")) {
+        events.onRemoteIceCandidate(toJavaCandidate(message));
+//      } else if (type.equals("remove-candidates")) {    //준화코드는 remove-candidates은 없음
+//        JSONArray candidateArray = json.getJSONArray("candidates");
+//        IceCandidate[] candidates = new IceCandidate[candidateArray.length()];
+//        for (int i = 0; i < candidateArray.length(); ++i) {
+//          candidates[i] = toJavaCandidate(candidateArray.getJSONObject(i));
+//        }
+//        events.onRemoteIceCandidatesRemoved(candidates);
+      } else if (type.equals("answer")) {
+        if (initiator) {
+          SessionDescription sdp = new SessionDescription(
+              SessionDescription.Type.fromCanonicalForm(type), message.getString("sdp"));
+          events.onRemoteDescription(sdp);
         } else {
-          reportError("Unexpected WebSocket message: " + msg);
+          reportError("Received answer for call initiator: " + message);
         }
+      } else if (type.equals("offer")) {
+        if (!initiator) {
+          SessionDescription sdp = new SessionDescription(
+              SessionDescription.Type.fromCanonicalForm(type), message.getString("sdp"));     //java 내부의 SessionDescription class에 타입이 이미 OFFER, PRANSWER, ANSWER, ROLLBACK으로 정의되어있음
+          events.onRemoteDescription(sdp);
+        } else {
+          reportError("Received offer for call receiver: " + message);
+        }
+      } else if (message.toString().equals("bye")) {
+        events.onChannelClose();
       } else {
-        if (errorText != null && errorText.length() > 0) {
-          reportError("WebSocket error message: " + errorText);
-        } else {
-          reportError("Unexpected WebSocket message: " + msg);
-        }
+        reportError("Unexpected WebSocket message: " + message);
       }
+//      } else {
+//        if (errorText != null && errorText.length() > 0) {
+//          reportError("WebSocket error message: " + errorText);
+//        } else {
+//          reportError("Unexpected WebSocket message: " + msg);
+//        }
+//      }
     } catch (JSONException e) {
       reportError("WebSocket message JSON parsing error: " + e.toString());
     }
-  }
-
-  @Override
-  public void onWebSocketClose() {
-    events.onChannelClose();
-  }
-
-  @Override
-  public void onWebSocketError(String description) {
-    reportError("WebSocket error: " + description);
   }
 
   // --------------------------------------------------------------------
@@ -445,5 +500,10 @@ public class SocketIO_RTCClient implements AppRTCClient, WebSocketChannelEvents 
   IceCandidate toJavaCandidate(JSONObject json) throws JSONException {
     return new IceCandidate(
         json.getString("id"), json.getInt("label"), json.getString("candidate"));
+  }
+
+  public void notifyStarted(){
+    this.isStarted = true;
+    this.roomFetcher.isStarted = true;
   }
 }

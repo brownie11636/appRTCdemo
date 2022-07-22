@@ -46,7 +46,13 @@ public class RoomParametersFetcher {    //makeRequest 함수를 위한 class
   private  String roomMessag;
 
   private JSONObject profile;
-  private final Socket socket;
+  private MyService service;
+//  private Socket socket;
+  private SocketIO_Utils socketUtils;
+  public boolean isStarted;
+
+  private List<IceCandidate> iceCandidates = null;
+  private SessionDescription offerSdp = null;
 
   /**
    * Room parameters fetcher callbacks.
@@ -65,13 +71,14 @@ public class RoomParametersFetcher {    //makeRequest 함수를 위한 class
   }
 
   public RoomParametersFetcher(
-      JSONObject profile, String roomId, String roomMessage, final RoomParametersFetcherEvents events, Socket socket) {
+      MyService service, boolean isStarted ,String roomId, String roomMessage, final RoomParametersFetcherEvents events, SocketIO_Utils socketUtils) {
     this.roomId = roomId;
     this.roomMessage = roomMessage;
     this.events = events;
-
-    this.socket = socket;
-    this.profile = profile;
+    this.socketUtils = socketUtils;
+//    this.socket = socketUtils.mSocket;
+    this.service = service;
+    this.isStarted = isStarted;
   }
 
   public void makeRequest() {
@@ -90,57 +97,63 @@ public class RoomParametersFetcher {    //makeRequest 함수를 위한 class
 //            roomHttpResponseParse(response);
 //          }
 //        });
-    socket.on("msg-v1", packet -> {
-      msgResponseParse((JSONObject) packet[0]);
+    socketUtils.socket.on("msg-v1", packet -> {
+      if(!isStarted) {
+        msgResponseParse((JSONObject) packet[0]);
+      }
     });
 
 //    httpConnection.send();
-    try {
-      socket.emit("Join_Service",this.profile.get("service"));
-      Log.i(TAG, "send Join_Service message: " + this.profile.get("service"));
-      socket.emit("msg-v1", new JSONObject().put("from", socket.id()));
-      Log.i(TAG, "send message to Peer from" + socket.id());
-    } catch (JSONException e) {
-      e.printStackTrace();
-      Log.e(TAG, "fail to send json socketId");
-    }
+    socketUtils.joinService(this.service);
+
+
+
     if(service.getDescription().equals("Streamer")) {
       //gotStream() in robot_viewer.js
       Log.i(TAG,"Adding local stream."); //??
-//      mSocketUtils.sendToPeer("connection request");
+      socketUtils.sendToPeer("connection request");
     }
   }
+
+
 //룸을 만드는 입장일때 쓰는듯
 //private void roomHttpResponseParse(String response) {
-private void msgResponseParse(JSONObject roomJson) {
+public void msgResponseParse(JSONObject roomJson) {
 //  Log.d(TAG, "Room response: " + response);
+
   Log.d(TAG, "Room response: " + roomJson);
     try {
-      List<IceCandidate> iceCandidates = null;
-      SessionDescription offerSdp = null;
+
+      //appRTC에서는 이게 한번만 돌았던거 같은데 난 아니니까
+      // 더 밖으로 빼서 roomFetcher가 선언될때 null로 만들어야겠음
+//      List<IceCandidate> iceCandidates = null;
+//      SessionDescription offerSdp = null;
 //      JSONObject roomJson = new JSONObject(response);
 
-      String result = roomJson.getString("result");
-      if (!result.equals("SUCCESS")) {
-        events.onSignalingParametersError("Room response error: " + result);
-        return;
-      }
-      response = roomJson.getString("params");
-      roomJson = new JSONObject(response);
-      String roomId = roomJson.getString("room_id");
-      String clientId = roomJson.getString("client_id");
-      String wssUrl = roomJson.getString("wss_url");
-      String wssPostUrl = roomJson.getString("wss_post_url");
-      boolean initiator = (roomJson.getBoolean("is_initiator"));
+//      String result = roomJson.getString("result");
+//      if (!result.equals("SUCCESS")) {
+//        events.onSignalingParametersError("Room response error: " + result);
+//        return;
+//      }
+//      response = roomJson.getString("params");
+//      roomJson = new JSONObject(roomJson.getString("message"));
+      String roomId = roomJson.getString("from");
+      String clientId = roomJson.getString("from");
+      String wssUrl = roomJson.getString("from");
+      String wssPostUrl = roomJson.getString("from");
+//      boolean initiator = (roomJson.getBoolean("is_initiator"));
+      boolean initiator = false;    //우리는 어차피 viewer입장에서만 코드 작성
+
       if (!initiator) {
         iceCandidates = new ArrayList<>();
-        String messagesString = roomJson.getString("messages");
-        JSONArray messages = new JSONArray(messagesString);
-        for (int i = 0; i < messages.length(); ++i) {
-          String messageString = messages.getString(i);
-          JSONObject message = new JSONObject(messageString);
+        JSONObject message = roomJson.getJSONObject("message");
+//        String messagesString = roomJson.getString("messages");
+//        JSONArray messages = new JSONArray(messagesString);
+//        for (int i = 0; i < messages.length(); ++i) {
+//          String messageString = messages.getString(i);
+//          JSONObject message = new JSONObject(messageString);
           String messageType = message.getString("type");
-          Log.d(TAG, "GAE->C #" + i + " : " + messageString);
+//          Log.d(TAG, "GAE->C #" + i + " : " + messageString);
           if (messageType.equals("offer")) {
             offerSdp = new SessionDescription(
                 SessionDescription.Type.fromCanonicalForm(messageType), message.getString("sdp"));
@@ -149,9 +162,9 @@ private void msgResponseParse(JSONObject roomJson) {
                 message.getString("id"), message.getInt("label"), message.getString("candidate"));
             iceCandidates.add(candidate);
           } else {
-            Log.e(TAG, "Unknown message: " + messageString);
+            Log.e(TAG, "Unknown message: " + message);
           }
-        }
+//        }
       }
       Log.d(TAG, "RoomId: " + roomId + ". ClientId: " + clientId);
       Log.d(TAG, "Initiator: " + initiator);
@@ -159,7 +172,13 @@ private void msgResponseParse(JSONObject roomJson) {
       Log.d(TAG, "WSS POST url: " + wssPostUrl);
 
       List<PeerConnection.IceServer> iceServers =
-          iceServersFromPCConfigJSON(roomJson.getString("pc_config"));    ////
+//      iceServersFromPCConfigJSON(roomJson.getString("pc_config"));    ////"pc_config도 우리가 그냥 집어넣음 ㅋㅋ
+      iceServersFromPCConfigJSON(new JSONObject()
+        .put("iceServers",new JSONArray()
+          .put(new JSONObject()
+            .put("urls","turn:3.38.108.27")
+            .put("username","usr")
+            .put("credential","pass"))));    ////"pc_config도 우리가 그냥 집어넣음 ㅋㅋ
       boolean isTurnPresent = false;
       for (PeerConnection.IceServer server : iceServers) {
         Log.d(TAG, "IceServer: " + server);
@@ -199,7 +218,8 @@ private void msgResponseParse(JSONObject roomJson) {
     Log.d(TAG, "Request TURN from: " + url);
     HttpURLConnection connection = (HttpURLConnection) new URL(url).openConnection();
     connection.setDoOutput(true);
-    connection.setRequestProperty("REFERER", "https://192.168.0.11:3333");
+    //url from Junhwa's code
+    connection.setRequestProperty("REFERER", "https://computeengineondemand.appspot.com/turn?username=41784574&key=4080218913");
     connection.setConnectTimeout(TURN_HTTP_TIMEOUT_MS);
     connection.setReadTimeout(TURN_HTTP_TIMEOUT_MS);
     int responseCode = connection.getResponseCode();
@@ -233,10 +253,12 @@ private void msgResponseParse(JSONObject roomJson) {
 
   // Return the list of ICE servers described by a WebRTCPeerConnection
   // configuration string.
-  private List<PeerConnection.IceServer> iceServersFromPCConfigJSON(String pcConfig)
+//  private List<PeerConnection.IceServer> iceServersFromPCConfigJSON(String pcConfig)
+  private List<PeerConnection.IceServer> iceServersFromPCConfigJSON(JSONObject pcConfig)
       throws JSONException {
-    JSONObject json = new JSONObject(pcConfig);
-    JSONArray servers = json.getJSONArray("iceServers");
+//    JSONObject json = new JSONObject(pcConfig);
+//    JSONArray servers = json.getJSONArray("iceServers");
+    JSONArray servers = pcConfig.getJSONArray("iceServers");
     List<PeerConnection.IceServer> ret = new ArrayList<>();
     for (int i = 0; i < servers.length(); ++i) {
       JSONObject server = servers.getJSONObject(i);
